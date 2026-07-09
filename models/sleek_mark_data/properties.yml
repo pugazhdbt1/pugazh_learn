@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: customers_stg
+    config:
+      alias: CUSTOMRES_STG
+      materialized: table
+
+  - name: orders_stg
+    config:
+      alias: ORDERS_STG
+      materialized: incremental
+      unique_key: order_id
+      on_schema_change:  sync_all_columns
+      transient: true
+      
+      
+  - name: employees_stg
+    config:
+      alias: EMPLOYEES_STG
+      materialized: table
+
+  - name: orderitems_stg
+    config:
+      alias: ORDERITEMS_STG
+      materialized: incremental

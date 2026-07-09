@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  # 1. Configuration for a Staging Model
+  - name: stg_users
+      alias: STG_USERS
+      materialized: incremental
+      unique_key: ['id', 'period']
+      on_schema_change: sync_all_columns
+      incremental_strategy: append
+      transient: true
+    columns:
+      - name: user_id
+        description: "The unique primary key for each user account."
+        data_tests:
+          - unique
+          - not_null
+
+      - name: email_address
+        description: "The user's verified email address, converted to lowercase."
+        data_tests:
+          - not_null
+
+  # 2. Configuration for a Core Mart Model
+  - name: dim_users
+    description: "The primary dimension table for users, containing aggregated metrics for BI reporting."
+    config:
+      materialized: table
+    columns:
+      - name: user_id
+        description: "The unique identifier matching back to stg_users."
+        data_tests:
+          - unique
+          - not_null
+
+      - name: total_orders
+        description: "Lifetime order count for this user."
+        data_tests:
+          - accepted_values:
+              values: [0, 1, 2]
+              # Note: For checking ranges or open values, standard custom tests are preferred over strict accepted_values.
+              config:
+                severity: warn
+
+      - name: account_status
+        description: "The current lifecycle phase of the user account."
+        data_tests:
+          - accepted_values:
+              values: ['active', 'suspended', 'churned']
