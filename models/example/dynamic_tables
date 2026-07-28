@@ -1,0 +1,219 @@
+create database dynamic_db;
+create schema dynamic_schema;
+
+--Layer 1 (Raw)
+CREATE OR REPLACE TABLE raw_orders (
+    order_id INT,
+    customer_id INT,
+    order_date TIMESTAMP,
+    amount NUMBER(10, 2),
+    city VARCHAR,
+    status VARCHAR
+);
+
+--Layer 1 (Stage)
+CREATE OR REPLACE DYNAMIC TABLE dt_silver_orders
+  TARGET_LAG = '1 minutes'
+  WAREHOUSE = compute_wh
+AS
+SELECT 
+    order_id,
+    customer_id,
+    TO_DATE(order_date) AS order_date,
+    amount,
+    UPPER(city) AS city
+FROM raw_orders
+WHERE status = 'COMPLETED';
+
+--Layer 3 (DEV)
+CREATE OR REPLACE DYNAMIC TABLE dt_gold_regional_revenue
+  TARGET_LAG = '3 minutes'
+  WAREHOUSE = compute_wh
+AS
+SELECT 
+    city,
+    COUNT(order_id) AS total_orders,
+    SUM(amount) AS total_revenue,
+    MAX(order_date) AS last_updated_date
+FROM dt_silver_orders
+GROUP BY city;
+
+--insert the raw initial data
+INSERT INTO raw_orders VALUES 
+(1, 501, '2026-07-03 10:00:00', 150.00, 'New York', 'COMPLETED'),
+(2, 502, '2026-07-03 10:05:00', 75.50, 'Chicago', 'COMPLETED'),
+(3, 503, '2026-07-03 10:10:00', 200.00, 'New York', 'PENDING'); -- This should be filtered out
+
+INSERT INTO raw_orders VALUES 
+(4, 504, '2026-08-05 10:00:00', 300.00, 'Mumbai', 'COMPLETED'),
+(5, 505, '2026-08-05 10:05:00', 85.50, 'Chennai', 'COMPLETED'),
+(6, 506, '2026-08-05 10:10:00', 400.00, 'Kerala', 'PENDING');
+
+select * from raw_orders;
+
+-- Querying Silver Layer after 1 minutes
+SELECT * FROM dt_silver_orders;
+
+-- Querying Gold Layer after 3 minutes
+SELECT * FROM dt_gold_regional_revenue;
+
+SELECT * FROM TABLE(INFORMATION_SCHEMA.DYNAMIC_TABLE_REFRESH_HISTORY(NAME => 'dt_gold_regional_revenue'));
+
+ALTER DYNAMIC TABLE dt_gold_regional_revenue REFRESH;
+
+
+-- Step 1: Create the base table
+CREATE OR REPLACE TABLE employee_raw (
+    emp_id INT,
+    first_name VARCHAR,
+    last_name VARCHAR,
+    department VARCHAR,
+    salary NUMBER,
+    status VARCHAR
+);
+
+-- Insert some sample data
+INSERT INTO employee_raw VALUES 
+(1, 'John', 'Doe', 'Engineering', 120000, 'ACTIVE'),
+(2, 'Jane', 'Smith', 'Sales', 95000, 'ACTIVE'),
+(3, 'Bob', 'Johnson', 'Engineering', 110000, 'TERMINATED');
+
+INSERT INTO employee_raw VALUES 
+(4, 'pugazh', 'pradhee', 'Engineering', 500000, 'ACTIVE');
+
+select * from employee_raw;
+
+-- Step 2: Create a standard view
+CREATE OR REPLACE materialized VIEW mv_active_employees AS
+SELECT 
+    emp_id,
+    CONCAT(first_name, ' ', last_name) AS full_name,
+    department
+FROM employee_raw
+WHERE status = 'ACTIVE';
+
+select * from mv_active_employees;
+
+-- Creating a Secure View to mask sensitive data
+CREATE OR REPLACE SECURE VIEW sv_active_employees AS
+SELECT 
+    emp_id,
+    CONCAT(first_name, ' ', last_name) AS full_name,
+    department
+FROM employee_raw
+WHERE status = 'ACTIVE';
+
+select * from sv_active_employees;
+
+-- This will return "SQL text is encrypted or not authorized" for regular users
+SELECT GET_DDL('VIEW', 'sv_active_employees');
+
+grant usage on database dynamic_db to role public;
+grant usage on schema dynamic_schema to role public;
+
+grant select on view mv_active_employees to role public;
+grant select on view sv_active_employees to role public;
+
+show views;
+
+SELECT * FROM information_schema.columns 
+WHERE table_name = 'EMPLOYEE_RAW';
+
+create or replace table table_a
+(id number,
+name varchar,
+salary number);
+
+insert into table_a
+values 
+(100,'AB',1000),
+(101,'BC',1020),
+(100,'CD',1100),
+(101,'DE',1500),
+(102,'EF',2000);
+
+create or replace table table_B
+(id number,
+name varchar,
+salary number);
+
+insert into table_B
+values 
+(103,'XY',2000),
+(104,'YZ',2100),
+(100,'SH',2200),
+(105,'TY',3000);
+
+SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'TABLE_B';
+
+SELECT 
+    ID,
+    NAME,
+    SALARY
+FROM TABLE_A A
+FULL OUTER JOIN TABLE_B B
+    ON A.ID = B.ID and A.NAME = B.NAME AND A.SALARY = B.SALARY;
+
+SELECT 
+    COALESCE(A.ID, B.ID) AS ID,
+    COALESCE(A.NAME, B.NAME) AS NAME,
+    COALESCE(A.SALARY, B.SALARY) AS SALARY
+FROM TABLE_A A
+FULL OUTER JOIN TABLE_B B
+    ON A.ID = B.ID and A.NAME = B.NAME AND A.SALARY = B.SALARY;
+
+WITH CTE1 AS
+(
+SELECT ID,NAME,SALARY FROM TABLE_A
+UNION ALL
+SELECT ID,NAME,SALARY FROM TABLE_B
+),
+
+CTE2 AS
+(SELECT ID,NAME,SALARY FROM CTE1
+QUALIFY ROW_NUMBER() OVER (PARTITION BY ID ORDER BY SALARY DESC) = 2
+)
+SELECT * FROM CTE2;
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+
+CREATE OR REPLACE TABLE DYNAMIC_RAW
+(ID NUMBER,
+NAME VARCHAR,
+SALARY NUMBER);
+
+INSERT INTO DYNAMIC_RAW
+VALUES
+(100,'PUGAZH',1000),
+(101,'PRADHEE',2000),
+(102,'BARATHI',3000);
+
+INSERT INTO DYNAMIC_RAW
+VALUES
+(103,'SURYA',4000),
+(104,'AASHIK',5000),
+(105,'YAZHINI',6000),
+(106,'RAFYA',7000);
+
+SELECT * FROM DYNAMIC_RAW;
+
+CREATE OR REPLACE DYNAMIC TABLE DYNAMIC_STAGE
+TARGET_LAG = '2 MINUTES'
+WAREHOUSE = COMPUTE_WH
+--REFRESH_MODE = INCREMENTAL 
+--INITIALIZE = ON_CREATE
+AS
+SELECT ID, NAME, SALARY FROM DYNAMIC_RAW;
+
+
+SELECT * FROM DYNAMIC_STAGE;
+
+CREATE OR REPLACE DYNAMIC TABLE DYNAMIC_PROD
+TARGET_LAG = '3 MINUTES'
+WAREHOUSE = COMPUTE_WH
+--REFRESH_MODE = INCREMENTAL 
+--INITIALIZE = ON_CREATE
+AS
+SELECT NAME AS F_NAME, SALARY AS MY_SALARY FROM DYNAMIC_RAW;
+
+SELECT * FROM DYNAMIC_PROD;
