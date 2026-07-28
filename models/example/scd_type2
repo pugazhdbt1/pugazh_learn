@@ -1,0 +1,47 @@
+create database scd_db;
+create schema scd_schema;
+
+-- 1. Create the Stage table (Incoming raw data)
+CREATE OR REPLACE TABLE emp_stage (
+    emp_id INT,
+    name VARCHAR,
+    location VARCHAR
+);
+
+-- 2. Create the Dimension table (Target SCD Type 2 table)
+CREATE OR REPLACE TABLE dim_employee (
+    emp_surrogate_key INT IDENTITY(1,1), -- Snowflake unique key for each version
+    emp_id INT,
+    name VARCHAR,
+    location VARCHAR,
+    start_date DATE,
+    end_date DATE,
+    is_current BOOLEAN
+);
+
+-- Populating stage with initial data
+INSERT INTO emp_stage VALUES 
+(101, 'Alice', 'New York'),
+(102, 'Bob', 'Chicago');
+
+select * from emp_stage;
+
+MERGE INTO dim_employee TARGET
+USING (
+    -- The subquery prepares data for both inserting new rows and handling changes
+    SELECT emp_id, name, location FROM emp_stage
+    UNION ALL
+    -- This part generates the null rows needed to trigger inserts for modified records
+    SELECT NULL as emp_id, name, location FROM emp_stage
+) SOURCE
+ON TARGET.emp_id = SOURCE.emp_id
+AND TARGET.is_current = TRUE
+
+-- ACTION 1: Update the old matching record to expire it (Not triggered on Day 1)
+WHEN MATCHED AND TARGET.location <> SOURCE.location THEN
+    UPDATE SET TARGET.end_date = CURRENT_DATE(), TARGET.is_current = FALSE
+
+-- ACTION 2: Insert the new version (or completely new records)
+WHEN NOT MATCHED AND SOURCE.emp_id IS NOT NULL THEN
+    INSERT (emp_id, name, location, start_date, end_date, is_current)
+    VALUES (SOURCE.emp_id, SOURCE.name, SOURCE.location, CURRENT_DATE(), NULL, TRUE);
