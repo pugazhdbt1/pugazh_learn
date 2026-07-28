@@ -1,0 +1,554 @@
+-- Delete duplicate records from a table using CTE with a temporary sequence column
+-- Co-authored with CoCo
+create or replace database learning;
+
+create or replace schema l1;
+
+create or replace table students
+(sname varchar,
+sid varchar,
+marks number);
+
+insert into  learning.l1.students
+(sname, sid, marks)
+values
+('A', 'X', 75),
+('A', 'Y', 75),
+('A', 'Z', 80),
+('B', 'X', 90),
+('B', 'Y', 91),
+('B', 'Z', 75);
+
+select * from learning.l1.students;
+
+with cte as
+(select sname, marks, row_number() over (partition by sname order by marks desc) as rn
+from students)
+select sname, sum(marks) as total_marks from cte
+where rn <= 2 group by sname order by sname;
+
+select regexp_replace('pu23ga34zh34','[^0-9]');--233434
+select regexp_replace('pu23ga34zh34','[^a-zA-Z]');--pugazh
+
+select convert_timezone('Asia/Kolkata','America/Chicago',current_timestamp()::timestamp_ntz);--2026-06-29 23:17:45.397
+
+CREATE OR REPLACE TABLE teachers (
+    teacher_id  INT,
+    subject_id  INT,
+    dept_id     INT
+);
+
+INSERT INTO teachers (teacher_id, subject_id, dept_id)
+VALUES 
+    (1, 2, 3),
+    (1, 2, 4),
+    (1, 3, 3),
+    (2, 1, 1),
+    (2, 2, 1),
+    (2, 3, 1),
+    (2, 4, 1);
+
+select * from teachers;
+-- Write a solution to calculate the number of unique subjects each teacher teaches in the university.
+-- Return the result table in any order.
+
+
+select teacher_id, count(distinct subject_id) as cnt from teachers
+group by teacher_id;
+---------------------------------
+CREATE OR REPLACE TABLE activity (
+    user_id       INT,
+    session_id    INT,
+    activity_date DATE,
+    activity_type VARCHAR(50)
+);
+
+INSERT INTO activity (user_id, session_id, activity_date, activity_type)
+VALUES 
+    (1, 1, '2019-07-20', 'open_session'),
+    (1, 1, '2019-07-20', 'scroll_down'),
+    (1, 1, '2019-07-20', 'end_session'),
+    (2, 4, '2019-07-20', 'open_session'),
+    (2, 4, '2019-07-21', 'send_message'),
+    (2, 4, '2019-07-21', 'end_session'),
+    (3, 2, '2019-07-21', 'open_session'),
+    (3, 2, '2019-07-21', 'send_message'),
+    (3, 2, '2019-07-21', 'end_session'),
+    (4, 3, '2019-06-25', 'open_session'),
+    (4, 3, '2019-06-25', 'end_session');
+
+select * from activity;
+-- Write a solution to find the daily active user count for a period of 30 days ending 2019-07-27 inclusively. A user was active on someday if they made at least one activity on that day.
+
+-- Return the result table in any order.
+
+SELECT activity_date AS day, COUNT(DISTINCT user_id) AS active_users
+FROM Activity
+WHERE (activity_date > '2019-06-27' AND activity_date <= '2019-07-27')
+GROUP BY activity_date;
+
+CREATE OR REPLACE TABLE courses (
+    student VARCHAR(10),
+    class   VARCHAR(50)
+);
+
+INSERT INTO courses (student, class)
+VALUES 
+    ('A', 'Math'),
+    ('B', 'English'),
+    ('C', 'Math'),
+    ('D', 'Biology'),
+    ('E', 'Math'),
+    ('F', 'Computer'),
+    ('G', 'Math'),
+    ('H', 'Math'),
+    ('I', 'Math');
+
+    select * from courses;
+
+-- Write a solution to find all the classes that have at least five students.
+-- Return the result table in any order.
+
+select class from courses 
+group by class
+having count(class) >= 5;
+------
+
+CREATE OR REPLACE TABLE employee (
+    id         INT,
+    name       VARCHAR(50),
+    department VARCHAR(10),
+    managerId  INT
+);
+
+INSERT INTO employee (id, name, department, managerId)
+VALUES 
+    (101, 'John',  'A', NULL),
+    (102, 'Dan',   'A', 101),
+    (103, 'James', 'A', 101),
+    (104, 'Amy',   'A', 101),
+    (105, 'Anne',  'A', 101),
+    (106, 'Ron',   'B', 101);
+
+select * from employee;
+
+-- Write a solution to find managers with at least five direct reports.
+-- Return the result table in any order.
+
+with cte as
+(select a.name as name, count(b.managerid) as cnt from employee a
+join employee b on a.id = b.managerid
+group by a.name
+having count(b.managerid) >= 5)
+select name from cte;
+
+SELECT name 
+FROM Employee 
+WHERE id IN (
+    SELECT managerId 
+    FROM Employee 
+    GROUP BY managerId 
+    HAVING COUNT(*) >= 5);
+
+
+create or replace table housing_data
+( house_data variant);
+
+select * from housing_data;
+
+select 
+house_data:basement::varchar as basement 
+from housing_data;
+
+
+--nullif(trim(get_ignore_case(iris_json, 'sepal_length')::varchar(50)),'') as sepal_length,
+
+create or replace table duplicate
+(id number,
+name varchar);
+
+insert into duplicate
+values
+(1,'pugazh'),
+(1,'pugazh'),
+(1,'pugazh'),
+(1,'pugazh'),
+(1,'pugazh'),
+(1,'pugazh'),
+(1,'pugazh'),
+(1,'pugazh'),
+(1,'pugazh'),
+(1,'pugazh');
+
+SELECT ID,name, COUNT(*) 
+FROM duplicate 
+GROUP BY ID,name 
+HAVING COUNT(*) > 1;
+
+SELECT ID,name 
+FROM duplicate 
+QUALIFY ROW_NUMBER() OVER (PARTITION BY ID, NAME ORDER BY ID) = 1; 
+
+
+select * from duplicate;
+
+insert overwrite into duplicate select distinct * from duplicate;
+
+-- Instantly swap the names and properties of the two tables
+
+-- Create as a permanent table (not transient/temp) so SWAP works
+CREATE OR REPLACE TABLE duplicate_unique as SELECT DISTINCT * FROM duplicate;
+ALTER TABLE duplicate SWAP WITH duplicate_unique;
+drop table duplicate_unique;
+show tables;
+
+
+
+
+DELETE FROM duplicate
+WHERE (id, name) IN (
+    SELECT id, name
+    FROM duplicate
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY id, name ORDER BY (SELECT NULL)) > 1
+);
+
+CREATE OR REPLACE TABLE DUPLICATE AS
+SELECT * FROM DUPLICATE
+QUALIFY ROW_NUMBER() OVER (PARTITION BY ID, NAME ORDER BY ID, NAME) = 1;
+
+select current_user();
+
+select dateadd('day',-2,current_timestamp());
+select datediff('day',-2,current_timestamp());
+
+-- How many days are between January 1st and January 10th?
+SELECT DATEDIFF('day', '2026-01-01', '2026-01-10') AS days_difference;
+
+-- What is 5 days after January 1st?
+SELECT DATEADD('day', 5, '2026-01-01') AS new_date;
+
+SELECT TO_DATE(20260703::VARCHAR, 'YYYYMMDD') AS converted_date;
+
+SELECT TO_DATE(TO_TIMESTAMP(1783000000)) AS timestamp_to_date;
+
+SELECT TO_VARCHAR(CURRENT_DATE(), 'YYYYMMDD')::INTEGER AS date_as_number;
+
+-- Enforce a maximum of 10 total digits, with exactly 2 decimal places
+SELECT TO_NUMBER('123.4567', 10, 2) AS rounded_currency;
+
+
+CREATE TABLE fact_sales_denormalized (
+    sale_id          INT PRIMARY KEY,
+    sale_date        DATE NOT NULL,
+    customer_name    VARCHAR(100) NOT NULL,
+    customer_email   VARCHAR(255) NOT NULL,
+    product_name     VARCHAR(150) NOT NULL,
+    category         VARCHAR(100) NOT NULL,
+    price            NUMERIC(10, 2) NOT NULL,
+    store_location   VARCHAR(150) NOT NULL,
+    store_region     VARCHAR(50) NOT NULL
+);
+
+INSERT INTO fact_sales_denormalized 
+-- (
+    -- sale_id, 
+    -- sale_date, 
+    -- customer_name, 
+    -- customer_email, 
+    -- product_name, 
+    -- category, 
+    -- price, 
+    -- store_location, 
+    -- store_region
+-- ) 
+VALUES 
+(1001, '2026-07-01', 'Alex Smith', 'alex@email.com', 'Pro Laptop', 'Electronics', 1200.00, 'Downtown NYC', 'Northeast'),
+(1002, '2026-07-01', 'Alex Smith', 'alex@email.com', 'Wireless Mouse', 'Accessories', 50.00, 'Downtown NYC', 'Northeast'),
+(1003, '2026-07-02', 'Jordan Lee', 'jlee@email.com', 'Pro Laptop', 'Electronics', 1200.00, 'Austin Main', 'South'),
+(1004, '2026-07-02', 'Alex Smith', 'alex@email.com', '27\" Monitor', 'Electronics', 300.00, 'Downtown NYC', 'Northeast');
+
+select * from fact_sales_denormalized;
+
+select     customer_name, customer_email, store_location, store_region,sum(price) as total_price
+from fact_sales_denormalized group by customer_name, customer_email, store_location, store_region;
+
+select     customer_name, customer_email, store_location, store_region,sum(price) as total_price
+from fact_sales_denormalized group by customer_name, customer_email, store_location, store_region;
+
+CREATE OR REPLACE TABLE raw_events_table (
+    inserted_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    source_data VARIANT
+);
+
+INSERT INTO raw_events_table (source_data)
+SELECT PARSE_JSON('{
+  "customer_id": "CUST-9921",
+  "interaction_type": "web_click",
+  "metadata": {
+    "device": "mobile",
+    "os": "iOS"
+  },
+  "cart_items": [
+    {"item_id": "PROD-101", "price": 49.99, "quantity": 1},
+    {"item_id": "PROD-204", "price": 15.50, "quantity": 2}
+  ]
+}');
+select * from raw_events_table;
+SELECT
+    -- Top-level attributes
+    source_data:customer_id::STRING AS customer_id,
+    source_data:interaction_type::STRING AS interaction_type,    
+    -- Nested metadata object attributes
+    source_data:metadata.device::STRING AS device,
+    source_data:metadata.os::STRING AS os,
+    -- Flattened array attributes
+    cart.value:item_id::STRING AS item_id,
+    cart.value:price::FLOAT AS item_price,
+    cart.value:quantity::INT AS item_quantity
+FROM raw_events_table,
+LATERAL FLATTEN(input => source_data:cart_items) cart;
+
+CREATE OR REPLACE TABLE raw_events_table2 (
+    inserted_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    source_data VARIANT
+);
+
+INSERT INTO raw_events_table2 (source_data)
+SELECT PARSE_JSON('{
+  "customer_id": "CUST-404",
+  "status": "Active",
+  "order_history": [
+    {
+      "order_id": "ORD-111",
+      "promotions": ["WELCOME10", "FREESHIP"]
+    },
+    {
+      "order_id": "ORD-222",
+      "promotions": ["WINTER20"]
+    }
+  ]
+}');
+
+select 
+    source_data:customer_id::string as customer_id,
+    source_data:status::string as status,
+    
+    orders.value:order_id::string as order_id,
+    
+    promo.value::string as promotions
+from raw_events_table2,
+LATERAL FLATTEN(input => source_data:order_history) orders,
+LATERAL FLATTEN(input => orders.value:promotions) promo;
+
+
+select current_user();
+
+
+-- Create the sandbox table
+CREATE OR REPLACE TRANSIENT TABLE sandbox_sales (
+    order_id INT,
+    sale_date DATE,
+    product_id VARCHAR(10),
+    department_id VARCHAR(20),
+    region VARCHAR(10),
+    amount NUMBER(10, 2)
+);
+
+-- Insert sample rows covering multiple products, departments, and regions
+INSERT INTO sandbox_sales (order_id, sale_date, product_id, department_id, region, amount) 
+VALUES
+    (101, '2026-07-01', 'PROD-A', 'Electronics', 'North', 150.00),
+    (102, '2026-07-02', 'PROD-A', 'Electronics', 'North', 300.00),
+    (103, '2026-07-01', 'PROD-B', 'Electronics', 'South', 450.00),
+    (104, '2026-07-03', 'PROD-A', 'Electronics', 'South', 120.00),
+    (105, '2026-07-01', 'PROD-C', 'Clothing',    'North', 80.00),
+    (106, '2026-07-02', 'PROD-C', 'Clothing',    'East',  120.00),
+    (107, '2026-07-03', 'PROD-C', 'Clothing',    'North', 60.00),
+    (108, '2026-07-04', 'PROD-A', 'Electronics', 'East',  500.00);
+
+
+select * from sandbox_sales;
+
+SELECT 
+    product_id,
+    region,
+    SUM(amount) AS total_sales
+FROM sandbox_sales
+GROUP BY product_id, region
+ORDER BY product_id, region;
+
+SELECT 
+    sale_date,
+    product_id,
+    amount,
+    SUM(amount) OVER (
+        PARTITION BY product_id 
+        ORDER BY sale_date
+    ) AS running_total_sales
+FROM sandbox_sales
+ORDER BY product_id, sale_date;
+-----------------------------------
+
+-- Create the test table
+CREATE OR REPLACE TRANSIENT TABLE consecutive_test (
+    id INT,
+    numbers INT
+);
+
+-- Insert sample rows to test consecutive occurrences
+INSERT INTO consecutive_test (id, numbers) 
+VALUES
+    (1, 1), -- Lone number
+    (2, 2), -- Start of 3 consecutive 2s
+    (3, 2), 
+    (4, 2), -- End of 3 consecutive 2s (Should match)
+    (5, 1), -- Breaks the streak
+    (6, 3), -- Start of 4 consecutive 3s
+    (7, 3), 
+    (8, 3), -- Reaches 3 consecutive (Should match)
+    (9, 3), -- Reaches 4 consecutive (Should match)
+    (10, 2), -- A '2' appears again, but it's not consecutive with the earlier 2s
+    (11, 4), -- Start of 2 consecutive 4s
+    (12, 4); -- Only 2 consecutive (Should NOT match)
+
+    SELECT DISTINCT numbers 
+FROM ( 
+    SELECT 
+        numbers,  
+        LEAD(numbers, 1) OVER (ORDER BY id) AS next_num, 
+        LEAD(numbers, 2) OVER (ORDER BY id) AS next_next_num 
+    FROM consecutive_test 
+) t 
+WHERE numbers = next_num AND numbers = next_next_num;
+----------------------------
+
+-- Create the test table
+CREATE OR REPLACE TRANSIENT TABLE temperature_test (
+    Days DATE,
+    Temp INT
+);
+
+-- Insert sample rows to test temperature increases
+INSERT INTO temperature_test (Days, Temp) 
+VALUES
+    ('2026-07-01', 72), -- Day 1: No previous day (Should NOT match)
+    ('2026-07-02', 75), -- Higher than July 1st (75 > 72) -> Should match
+    ('2026-07-03', 70), -- Lower than July 2nd (70 < 75) -> Should NOT match
+    ('2026-07-04', 70), -- Same as July 3rd (70 = 70)   -> Should NOT match
+    ('2026-07-05', 82), -- Higher than July 4th (82 > 70) -> Should match
+    ('2026-07-06', 80); -- Lower than July 5th (80 < 82) -> Should NOT match
+
+    WITH TempWithLag AS ( 
+    SELECT 
+        Days, 
+        Temp, 
+        LAG(Temp) OVER (ORDER BY Days) AS prev_temp 
+    FROM temperature_test 
+) 
+SELECT Days 
+FROM TempWithLag 
+WHERE Temp > prev_temp
+ORDER BY Days;
+
+USE ROLE ACCOUNTADMIN;
+
+-- View remaining balance history (requires ORGADMIN / Organization Usage privileges)
+SELECT 
+    USAGE_DATE,
+    FREE_USAGE_BALANCE,
+    CAPACITY_BALANCE,
+    ON_DEMAND_CONSUMPTION_BALANCE
+FROM SNOWFLAKE.ORGANIZATION_USAGE.REMAINING_BALANCE_DAILY
+ORDER BY USAGE_DATE DESC
+LIMIT 7;
+
+----
+
+CREATE OR REPLACE PROCEDURE truncate_all_tables_in_schema(schema_name STRING)
+RETURNS STRING
+LANGUAGE SQL
+EXECUTE AS CALLER
+AS
+$$
+DECLARE
+    table_name STRING;
+    truncated_count INT DEFAULT 0;
+    -- Cursor to fetch all base tables in the current database and specified schema
+    table_cursor CURSOR FOR 
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = :schema_name 
+          AND table_type = 'BASE TABLE';
+BEGIN
+    -- Ensure the input schema name is handled case-insensitively if passed in lower case,
+    -- but Snowflake system views expect uppercase unless quoted.
+    schema_name := UPPER(:schema_name);
+
+    OPEN table_cursor;
+    
+    LOOP
+        FETCH table_cursor INTO table_name;
+        -- Exit the loop when there are no more rows
+        IF (table_name IS NULL) THEN
+            BREAK;
+        END IF;
+        
+        -- Dynamically construct and execute the TRUNCATE statement
+        -- Using IDENTIFIER handles special characters or case sensitivity safely
+        EXECUTE IMMEDIATE 'TRUNCATE TABLE ' || :schema_name || '.' || IDENTIFIER(:table_name);
+        
+        truncated_count := truncated_count + 1;
+    END LOOP;
+    
+    CLOSE table_cursor;
+    
+    RETURN 'Successfully truncated ' || :truncated_count || ' tables in schema ' || :schema_name || '.';
+EXCEPTION
+    WHEN OTHER THEN
+        -- Safely close the cursor if an error occurs mid-execution
+        CLOSE table_cursor;
+        RAISE;
+END;
+$$;
+
+CALL truncate_all_tables_in_schema('TRUNC_SCHEMA');
+
+select table_name from information_schema.tables where table_schema = 'L1';
+select table_name from information_schema.tables where table_schema = upper('trunc_schema');
+
+show tables in schema trunc_schema;
+
+select * from employee;
+
+create or replace schema trunc_schema clone l1;
+
+CREATE TABLE Transaction (
+    txn_id      INT NOT NULL,
+    customer_id INT NOT NULL,
+    amount      DECIMAL(10, 2) NOT NULL,
+    updated_at  DATE NOT NULL
+);
+
+INSERT INTO Transaction (txn_id, customer_id, amount, updated_at) 
+VALUES 
+    (1, 411, 1000.00, '2025-12-22'),
+    (2, 412, 2000.00, '2025-05-31'),
+    (3, 413, 1500.00, '2025-11-13'),
+    (3, 413, 1500.00, '2025-11-15');
+
+select * from Transaction;
+
+select txn_id, customer_id, amount, updated_at from Transaction	 
+where
+qualify row_number() over(partition by txn_id, customer_id, amount order by updated_at desc) = 1;
+
+SELECT 
+    txn_id, 
+    customer_id, 
+    amount, 
+    updated_at 
+FROM Transaction
+QUALIFY ROW_NUMBER() OVER(
+    PARTITION BY txn_id, customer_id 
+    ORDER BY updated_at DESC
+) = 1;
